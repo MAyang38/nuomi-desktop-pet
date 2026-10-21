@@ -6,7 +6,7 @@ using System.Windows.Media;
 namespace DesktopKitten
 {
     /// <summary>
-    /// A resolution independent, front facing little marmalade kitten.
+    /// A resolution independent marmalade kitten, with a turned walking head.
     /// Coordinates are in a 240 by 240 logical canvas. The caller owns scaling.
     /// activity is walk intensity in [0,1]; walk phase is derived from time.
     /// </summary>
@@ -67,6 +67,8 @@ namespace DesktopKitten
             bool happy = mood == "happy" || petPulse > 0.05;
             bool dragging = mood == "drag";
             bool jumping = mood == "jump";
+            bool eating = mood == "eat";
+            bool playing = mood == "play";
             double gait = Math.Sin(time * 8.2);
             double breath = Math.Sin(time * 2.7);
             double bob = walking ? Math.Abs(gait) * -2.0 * (0.4 + 0.6 * activity) : breath * 0.7;
@@ -77,6 +79,7 @@ namespace DesktopKitten
 
             // The tail sits behind the body. Its rounded silhouette and clipped stripes
             // remain clean even when rendered at small desktop sizes.
+            if (walking) dc.PushTransform(new ScaleTransform(-1, 1, 120, 120));
             dc.PushTransform(new RotateTransform(Math.Sin(time * (happy ? 6.0 : 2.8)) * (happy ? 6 : 3.5), 154, 176));
             dc.DrawGeometry(Orange, Outline, Tail);
             dc.PushClip(Tail);
@@ -84,6 +87,7 @@ namespace DesktopKitten
             dc.DrawGeometry(null, P(OrangeLight, 2.0), G("M 155,176 C 166,182 177,186 185,179"));
             dc.Pop();
             dc.Pop();
+            if (walking) dc.Pop();
 
             dc.DrawGeometry(Fur, Outline, Body);
             dc.DrawEllipse(FurShade, null, new Point(94, 185), 10, 10);
@@ -104,68 +108,77 @@ namespace DesktopKitten
             else
             {
                 double lift = dragging || jumping ? -7 : 0;
-                DrawPaw(dc, 101, 194 + lift, 1);
+                DrawPaw(dc, 101, 194 + lift - (playing ? (1 + Math.Sin(time * 7)) * 4 : 0), 1);
                 DrawPaw(dc, 139, 194 + lift, 1);
             }
 
-            double tilt = dragging ? Math.Sin(time * 3.2) * 3.0 : happy ? Math.Sin(time * 3.5) * 2.0 : walking ? gait * 1.4 : 0;
-            dc.PushTransform(new RotateTransform(tilt, 120, 125));
-            dc.DrawGeometry(Orange, Outline, LeftEar);
-            dc.DrawGeometry(Orange, Outline, RightEar);
-            dc.DrawGeometry(EarPink, null, LeftInner);
-            dc.DrawGeometry(EarPink, null, RightInner);
-            dc.DrawGeometry(null, P(EarLight, 1.8), G("M 69,48 L 70,57 M 171,48 L 170,57"));
-
-            dc.DrawGeometry(Fur, Outline, Head);
-            dc.PushClip(Head);
-            dc.DrawGeometry(OrangeLight, null, Crown);
-            dc.DrawGeometry(Stripe, null, ForeheadLeft);
-            dc.DrawGeometry(Stripe, null, ForeheadCenter);
-            dc.DrawGeometry(Stripe, null, ForeheadRight);
-            dc.DrawGeometry(null, P(Orange, 4.1), G("M 55,103 L 68,107 M 56,113 L 68,116 M 185,103 L 172,107 M 184,113 L 172,116"));
-            dc.DrawEllipse(FurLight, null, new Point(102, 124), 25, 17);
-            dc.DrawEllipse(FurLight, null, new Point(138, 124), 25, 17);
-            dc.Pop();
-
-            dc.DrawEllipse(Blush, null, new Point(79, 116), 10, 5.5);
-            dc.DrawEllipse(Blush, null, new Point(161, 116), 10, 5.5);
-
-            double blinkPhase = time % 6.1;
-            bool blink = blinkPhase > 5.80 && blinkPhase < 5.96;
-            bool content = happy && Math.Sin(time * 3.4) > -0.4;
-            if (content || blink)
+            if (walking)
             {
-                dc.DrawGeometry(null, Fine, G("M 85,104 C 90,96 100,96 106,104 M 134,104 C 140,96 150,96 155,104"));
+                DrawWalkingHead(dc, time, gait);
             }
             else
             {
-                DrawEye(dc, 96, 101, dragging || jumping);
-                DrawEye(dc, 144, 101, dragging || jumping);
-            }
+                double tilt = dragging ? Math.Sin(time * 3.2) * 3.0 : eating ? 6 + Math.Sin(time * 6) * 2 : playing ? -5 + Math.Sin(time * 5) * 3 : happy ? Math.Sin(time * 3.5) * 2.0 : 0;
+                dc.PushTransform(new TranslateTransform(0, eating ? 4 + Math.Sin(time * 6) * 1.5 : 0));
+                dc.PushTransform(new RotateTransform(tilt, 120, 125));
+                dc.DrawGeometry(Orange, Outline, LeftEar);
+                dc.DrawGeometry(Orange, Outline, RightEar);
+                dc.DrawGeometry(EarPink, null, LeftInner);
+                dc.DrawGeometry(EarPink, null, RightInner);
+                dc.DrawGeometry(null, P(EarLight, 1.8), G("M 69,48 L 70,57 M 171,48 L 170,57"));
 
-            dc.DrawGeometry(Nose, null, NoseShape);
-            dc.DrawEllipse(EarLight, null, new Point(118, 114.4), 2.2, 0.8);
-            if (happy || jumping)
-            {
-                dc.DrawGeometry(Ink, Hair, OpenSmile);
-                dc.DrawEllipse(EarPink, null, new Point(120, 128.3), 4.6, 2.8);
-            }
-            else
-            {
-                dc.DrawGeometry(null, Fine, Smile);
-            }
-            dc.DrawGeometry(null, Hair, G("M 72,117 L 51,112 M 71,123 L 51,124 M 168,117 L 189,112 M 169,123 L 189,124"));
-            dc.DrawEllipse(FurShade, null, new Point(103, 117), 1.1, 1.1);
-            dc.DrawEllipse(FurShade, null, new Point(100, 122), 1.1, 1.1);
-            dc.DrawEllipse(FurShade, null, new Point(137, 117), 1.1, 1.1);
-            dc.DrawEllipse(FurShade, null, new Point(140, 122), 1.1, 1.1);
+                dc.DrawGeometry(Fur, Outline, Head);
+                dc.PushClip(Head);
+                dc.DrawGeometry(OrangeLight, null, Crown);
+                dc.DrawGeometry(Stripe, null, ForeheadLeft);
+                dc.DrawGeometry(Stripe, null, ForeheadCenter);
+                dc.DrawGeometry(Stripe, null, ForeheadRight);
+                dc.DrawGeometry(null, P(Orange, 4.1), G("M 55,103 L 68,107 M 56,113 L 68,116 M 185,103 L 172,107 M 184,113 L 172,116"));
+                dc.DrawEllipse(FurLight, null, new Point(102, 124), 25, 17);
+                dc.DrawEllipse(FurLight, null, new Point(138, 124), 25, 17);
+                dc.Pop();
 
-            // A small neck scarf gives the silhouette a recognizable, friendly detail.
-            dc.DrawGeometry(B("#8FBFB4"), P(Ink, 2.0), G("M 97,143 C 111,148 129,148 143,143 L 142,149 C 128,154 111,154 98,149 Z"));
-            dc.DrawGeometry(B("#A8D2C7"), P(Ink, 1.8), G("M 134,150 L 141,149 L 146,161 L 139,159 L 136,162 Z"));
-            dc.DrawEllipse(B("#F6D182"), P(Ink, 1.6), new Point(120, 151), 4.8, 4.8);
-            dc.DrawGeometry(null, P(Stripe, 1.0), G("M 118,152 L 122,152"));
-            dc.Pop();
+                dc.DrawEllipse(Blush, null, new Point(79, 116), 10, 5.5);
+                dc.DrawEllipse(Blush, null, new Point(161, 116), 10, 5.5);
+
+                double blinkPhase = time % 6.1;
+                bool blink = blinkPhase > 5.80 && blinkPhase < 5.96;
+                bool content = (happy || eating) && Math.Sin(time * 3.4) > -0.4;
+                if (content || blink)
+                {
+                    dc.DrawGeometry(null, Fine, G("M 85,104 C 90,96 100,96 106,104 M 134,104 C 140,96 150,96 155,104"));
+                }
+                else
+                {
+                    DrawEye(dc, 96, 101, dragging || jumping || playing);
+                    DrawEye(dc, 144, 101, dragging || jumping || playing);
+                }
+
+                dc.DrawGeometry(Nose, null, NoseShape);
+                dc.DrawEllipse(EarLight, null, new Point(118, 114.4), 2.2, 0.8);
+                if (happy || jumping || playing || (eating && Math.Sin(time * 8) > 0))
+                {
+                    dc.DrawGeometry(Ink, Hair, OpenSmile);
+                    dc.DrawEllipse(EarPink, null, new Point(120, 128.3), 4.6, 2.8);
+                }
+                else
+                {
+                    dc.DrawGeometry(null, Fine, Smile);
+                }
+                dc.DrawGeometry(null, Hair, G("M 72,117 L 51,112 M 71,123 L 51,124 M 168,117 L 189,112 M 169,123 L 189,124"));
+                dc.DrawEllipse(FurShade, null, new Point(103, 117), 1.1, 1.1);
+                dc.DrawEllipse(FurShade, null, new Point(100, 122), 1.1, 1.1);
+                dc.DrawEllipse(FurShade, null, new Point(137, 117), 1.1, 1.1);
+                dc.DrawEllipse(FurShade, null, new Point(140, 122), 1.1, 1.1);
+
+                // A small neck scarf gives the silhouette a recognizable, friendly detail.
+                dc.DrawGeometry(B("#8FBFB4"), P(Ink, 2.0), G("M 97,143 C 111,148 129,148 143,143 L 142,149 C 128,154 111,154 98,149 Z"));
+                dc.DrawGeometry(B("#A8D2C7"), P(Ink, 1.8), G("M 134,150 L 141,149 L 146,161 L 139,159 L 136,162 Z"));
+                dc.DrawEllipse(B("#F6D182"), P(Ink, 1.6), new Point(120, 151), 4.8, 4.8);
+                dc.DrawGeometry(null, P(Stripe, 1.0), G("M 118,152 L 122,152"));
+                dc.Pop();
+                dc.Pop();
+            }
             dc.Pop();
 
             if (happy)
@@ -175,6 +188,58 @@ namespace DesktopKitten
                 DrawHeart(dc, 191, 62 - floatOffset, 0.69, HeartPink, 13);
                 if (petPulse > 0.25) DrawHeart(dc, 181, 91 - floatOffset, 0.39, HeartLight, -8);
             }
+        }
+
+        // Canonical walk faces right. PetCanvas mirrors the whole pose for leftward
+        // travel; a distinct muzzle silhouette makes that direction visible at pet size.
+        private static void DrawWalkingHead(DrawingContext dc, double time, double gait)
+        {
+            dc.PushTransform(new RotateTransform(gait * 1.4, 120, 137));
+
+            // The far ear sits behind the skull; the near ear has a wider visible face.
+            dc.DrawGeometry(Orange, Outline, G("M 141,66 C 147,54 158,38 164,40 C 170,43 172,65 169,82 Z"));
+            dc.DrawGeometry(EarPink, null, G("M 150,61 L 163,46 C 166,53 167,62 166,69 Z"));
+            dc.DrawGeometry(Orange, Outline, G("M 83,81 C 77,67 74,44 81,39 C 85,37 104,52 112,64 Z"));
+            dc.DrawGeometry(EarPink, null, G("M 84,65 C 82,57 81,47 83,45 C 90,49 98,57 101,62 Z"));
+            dc.DrawGeometry(null, P(EarLight, 1.8), G("M 84,48 L 86,57 M 162,48 L 163,57"));
+
+            Geometry turnedHead = G("M 122,55 C 146,54 161,66 169,84 C 172,91 174,100 177,105 C 184,106 190,109 191,115 C 192,123 184,126 181,133 C 168,146 134,151 108,145 C 91,142 76,129 73,111 C 67,91 80,69 99,59 C 107,56 114,55 122,55 Z");
+            dc.DrawGeometry(Fur, Outline, turnedHead);
+            dc.PushClip(turnedHead);
+            dc.DrawGeometry(OrangeLight, null, G("M 77,54 L 165,52 L 179,101 C 163,85 149,87 138,85 C 116,79 104,89 72,95 Z"));
+            dc.DrawGeometry(Stripe, null, G("M 120,56 L 130,56 L 128,77 C 126,83 122,82 122,77 Z M 136,57 L 146,61 L 141,80 C 139,84 135,82 136,77 Z M 151,64 L 159,71 L 153,83 C 150,86 148,82 150,78 Z"));
+            dc.DrawGeometry(null, P(Orange, 4.1), G("M 74,101 L 88,105 M 77,112 L 90,115 M 81,123 L 93,124"));
+            dc.DrawEllipse(FurLight, null, new Point(160, 125), 25, 17);
+            dc.DrawEllipse(FurLight, null, new Point(178, 119), 12, 11);
+            dc.Pop();
+
+            dc.DrawEllipse(Blush, null, new Point(111, 118), 10, 5.5);
+            bool blink = time % 6.1 > 5.80 && time % 6.1 < 5.96;
+            if (blink)
+            {
+                dc.DrawGeometry(null, Fine, G("M 121,103 C 126,97 137,97 142,103 M 159,101 C 162,96 167,96 170,100"));
+            }
+            else
+            {
+                // The far eye is foreshortened rather than keeping a symmetric face.
+                dc.PushTransform(new ScaleTransform(.53, .86, 164, 100));
+                DrawEye(dc, 164, 100, false);
+                dc.Pop();
+                DrawEye(dc, 132, 101, false);
+            }
+
+            dc.DrawGeometry(Nose, null, G("M 184,109 C 187,108 191,110 191,112 C 191,115 186,117 184,115 L 182,112 Z"));
+            dc.DrawEllipse(EarLight, null, new Point(186, 110.8), 1.8, .7);
+            dc.DrawGeometry(null, Fine, G("M 186,116 C 184,123 175,127 170,122"));
+            dc.DrawGeometry(null, Hair, G("M 157,120 L 137,114 M 157,125 L 136,126 M 189,122 L 206,118 M 188,126 L 203,130"));
+            dc.DrawEllipse(FurShade, null, new Point(162, 120), 1.1, 1.1);
+            dc.DrawEllipse(FurShade, null, new Point(159, 125), 1.1, 1.1);
+
+            dc.DrawGeometry(B("#8FBFB4"), P(Ink, 2.0), G("M 102,143 C 116,149 137,149 151,141 L 150,148 C 136,156 115,156 103,149 Z"));
+            dc.DrawGeometry(B("#A8D2C7"), P(Ink, 1.8), G("M 139,151 L 146,149 L 151,161 L 144,159 L 141,163 Z"));
+            dc.DrawEllipse(B("#F6D182"), P(Ink, 1.6), new Point(128, 152), 4.8, 4.8);
+            dc.DrawGeometry(null, P(Stripe, 1.0), G("M 126,153 L 130,153"));
+            dc.Pop();
         }
 
         private static void DrawWalkingArm(DrawingContext dc, double x, double y, double angle, double phase)

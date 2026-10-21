@@ -12,7 +12,7 @@ $references = @(
 )
 $compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/codepage:65001', '/utf8output', ('/out:' + $OutputPath))
 $compilerArgs += $references | ForEach-Object { '/reference:' + $_ }
-$compilerArgs += @((Join-Path $PSScriptRoot 'KittenPet.cs'), (Join-Path $PSScriptRoot 'CatArt.cs'), (Join-Path $PSScriptRoot 'CatSleepArt.cs'))
+$compilerArgs += @((Join-Path $PSScriptRoot 'KittenPet.cs'), (Join-Path $PSScriptRoot 'PetSettings.cs'), (Join-Path $PSScriptRoot 'CatArt.cs'), (Join-Path $PSScriptRoot 'CatSleepArt.cs'), (Join-Path $PSScriptRoot 'CatInteractionArt.cs'))
 & $compiler $compilerArgs
 if ($LASTEXITCODE -ne 0) { throw 'KittenPet compilation failed.' }
 Write-Output 'KittenPet.exe built successfully.'

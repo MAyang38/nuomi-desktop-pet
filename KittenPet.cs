@@ -70,20 +70,21 @@ namespace DesktopKitten
         private static void RenderPreview(string path)
         {
             DrawingVisual visual = new DrawingVisual();
-            string[] moods = { "idle", "walk", "happy", "sleep", "jump", "drag" };
+            string[] moods = { "idle", "walk", "happy", "sleep", "jump", "drag", "eat", "play" };
             using (DrawingContext dc = visual.RenderOpen())
             {
-                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(247, 244, 238)), null, new Rect(0, 0, 720, 560));
+                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(247, 244, 238)), null, new Rect(0, 0, 960, 560));
                 for (int i = 0; i < moods.Length; i++)
                 {
-                    dc.PushTransform(new TranslateTransform((i % 3) * 240, (i / 3) * 280));
+                    dc.PushTransform(new TranslateTransform((i % 4) * 240, (i / 4) * 280));
                     CatArt.Draw(dc, 1.4 + i * .37, moods[i], .8, moods[i] == "happy" ? 1 : 0, 1);
+                    CatInteractionArt.Draw(dc, 1.4 + i * .37, moods[i], .35);
                     FormattedText text = new FormattedText(moods[i], CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 16, Brushes.SaddleBrown, 1.0);
                     dc.DrawText(text, new Point(120 - text.Width / 2, 245));
                     dc.Pop();
                 }
             }
-            RenderTargetBitmap bitmap = new RenderTargetBitmap(720, 560, 96, 96, PixelFormats.Pbgra32);
+            RenderTargetBitmap bitmap = new RenderTargetBitmap(960, 560, 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(visual);
             PngBitmapEncoder encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));
@@ -99,10 +100,14 @@ namespace DesktopKitten
         private readonly Random random = new Random();
         private readonly Forms.NotifyIcon tray;
         private readonly System.Drawing.Icon trayIcon;
+        private PetSettings preferences = new PetSettings();
         private double previous, nextAction = 10, walkUntil, petUntil, jumpUntil, bubbleUntil, nextStatus;
+        private double interactionStart, interactionUntil;
+        private string interaction;
         private double direction = -1, size = .9, dragLeft, dragTop;
         private Point downScreen;
-        private bool dragging, dragged, asleep, roaming = true, menuOpen;
+        private bool pressed, dragging, dragged, asleep, roaming = true, menuOpen;
+        private bool settingsErrorLogged, statusErrorLogged;
         private string bubble = "喵～我是糯米";
         private Rect area;
         internal string Mood = "idle";
@@ -129,7 +134,7 @@ namespace DesktopKitten
             LoadSettings();
             Width = 240 * size; Height = 296 * size;
             area = SystemParameters.WorkArea;
-            Home();
+            PlaceAtHome();
             bubbleUntil = 6;
             SourceInitialized += delegate
             {
@@ -140,7 +145,7 @@ namespace DesktopKitten
             MouseLeftButtonDown += Down;
             MouseMove += Move;
             MouseLeftButtonUp += Up;
-            LostMouseCapture += delegate { dragging = false; };
+            LostMouseCapture += delegate { FinishPress(false); };
             MouseRightButtonUp += delegate(object sender, MouseButtonEventArgs e)
             { e.Handled = true; ShowMenu(); };
             MouseEnter += delegate { Cursor = Cursors.Hand; };
@@ -156,17 +161,21 @@ namespace DesktopKitten
             tray.DoubleClick += delegate { Dispatcher.BeginInvoke(new Action(delegate { Home(); Say("喵，我在这里！", 4); })); };
             Forms.ContextMenuStrip trayMenu = new Forms.ContextMenuStrip();
             trayMenu.Items.Add("找回小猫", null, delegate { Dispatcher.BeginInvoke(new Action(delegate { Home(); Say("喵，我在这里！", 4); })); });
+            trayMenu.Items.Add("喂点猫粮", null, delegate { Dispatcher.BeginInvoke(new Action(Feed)); });
+            trayMenu.Items.Add("玩毛线球", null, delegate { Dispatcher.BeginInvoke(new Action(Play)); });
             trayMenu.Items.Add("睡觉 / 叫醒", null, delegate { Dispatcher.BeginInvoke(new Action(ToggleSleep)); });
             trayMenu.Items.Add(new Forms.ToolStripSeparator());
             trayMenu.Items.Add("退出小猫", null, delegate { Dispatcher.BeginInvoke(new Action(Close)); });
             tray.ContextMenuStrip = trayMenu;
+            trayMenu.Opening += delegate { SetMenuOpen(true); };
+            trayMenu.Closed += delegate { SetMenuOpen(false); };
             Closed += delegate
             {
                 timer.Stop(); SaveSettings();
-                tray.Visible = false; tray.Dispose(); trayIcon.Dispose();
+                tray.Visible = false; tray.Dispose(); trayMenu.Dispose(); trayIcon.Dispose();
                 WriteStatus("closed");
             };
-            Loaded += delegate { previous = clock.Elapsed.TotalSeconds; timer.Start(); WriteStatus("running"); };
+            Loaded += delegate { RestorePosition(); previous = clock.Elapsed.TotalSeconds; timer.Start(); WriteStatus("running"); };
         }
 
         private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr w, IntPtr l, ref bool handled)
@@ -174,17 +183,50 @@ namespace DesktopKitten
             if (msg == 0x8001) { Home(); Say("喵，我在这里！", 4); handled = true; }
             // A display, DPI or work-area change can otherwise leave a pet offscreen.
             if (msg == 0x007E || msg == 0x02E0 || (msg == 0x001A && w.ToInt64() == 47))
-                Dispatcher.BeginInvoke(new Action(delegate { Home(); }));
+                Dispatcher.BeginInvoke(new Action(EnsureVisible));
             return IntPtr.Zero;
         }
 
         private void Home()
+        {
+            FinishPress(false); CancelActivities(); PlaceAtHome(); SaveSettings();
+        }
+
+        private void PlaceAtHome()
         {
             area = SystemParameters.WorkArea;
             Left = area.Right - Width - 30;
             Top = area.Bottom - Height + 14 * size;
             walkUntil = 0;
             Clamp();
+        }
+
+        private void RestorePosition()
+        {
+            if (preferences.Left.HasValue && preferences.Top.HasValue && TryUseArea(preferences.Left.Value, preferences.Top.Value))
+            { Left = preferences.Left.Value; Top = preferences.Top.Value; Clamp(); }
+            else EnsureVisible();
+        }
+
+        private void EnsureVisible()
+        {
+            if (TryUseArea(Left, Top)) Clamp();
+            else PlaceAtHome();
+        }
+
+        private bool TryUseArea(double left, double top)
+        {
+            PresentationSource source = PresentationSource.FromVisual(this);
+            if (source == null || source.CompositionTarget == null) return false;
+            Matrix from = source.CompositionTarget.TransformFromDevice;
+            Point center = new Point(left + Width / 2, top + 180 * size);
+            foreach (Forms.Screen screen in Forms.Screen.AllScreens)
+            {
+                System.Drawing.Rectangle bounds = screen.WorkingArea;
+                Rect candidate = new Rect(from.Transform(new Point(bounds.Left, bounds.Top)), from.Transform(new Point(bounds.Right, bounds.Bottom)));
+                if (candidate.Contains(center)) { area = candidate; return true; }
+            }
+            return false;
         }
 
         private void UpdateArea()
@@ -211,7 +253,8 @@ namespace DesktopKitten
             Time = clock.Elapsed.TotalSeconds;
             double dt = Math.Min(.08, Time - previous); previous = Time;
             bool walking = false;
-            if (!dragging && !asleep && !menuOpen && Time >= petUntil && Time >= jumpUntil && roaming)
+            if (Time >= interactionUntil) interaction = null;
+            if (!pressed && !asleep && !menuOpen && Time >= petUntil && Time >= jumpUntil && interaction == null && roaming)
             {
                 if (Time >= nextAction)
                 {
@@ -228,7 +271,7 @@ namespace DesktopKitten
                     Clamp();
                 }
             }
-            Mood = dragging ? "drag" : asleep ? "sleep" : Time < jumpUntil ? "jump" : Time < petUntil ? "happy" : walking ? "walk" : "idle";
+            Mood = dragging ? "drag" : asleep ? "sleep" : Time < jumpUntil ? "jump" : interaction != null ? interaction : Time < petUntil ? "happy" : walking ? "walk" : "idle";
             Pulse = Math.Max(0, Math.Min(1, petUntil - Time));
             Bounce = Time < jumpUntil ? Math.Sin(Math.PI * Math.Max(0, Math.Min(1, (1 - (jumpUntil - Time) / .8)))) * 33 : 0;
             canvas.InvalidateVisual();
@@ -237,43 +280,66 @@ namespace DesktopKitten
 
         private Point ScreenMouse()
         {
-            Point p = PointToScreen(Mouse.GetPosition(this));
-            PresentationSource source = PresentationSource.FromVisual(this);
-            return source.CompositionTarget.TransformFromDevice.Transform(p);
+            return PointToScreen(Mouse.GetPosition(this));
         }
         private void Down(object sender, MouseButtonEventArgs e)
         {
             if (e.ClickCount == 2) { Jump(); e.Handled = true; return; }
             downScreen = ScreenMouse(); dragLeft = Left; dragTop = Top;
-            dragging = true; dragged = false;
+            pressed = true; dragging = false; dragged = false;
             CaptureMouse(); e.Handled = true;
         }
         private void Move(object sender, MouseEventArgs e)
         {
-            if (!dragging || e.LeftButton != MouseButtonState.Pressed) return;
-            Point p = ScreenMouse(); Vector delta = p - downScreen;
-            if (delta.Length > 4) dragged = true;
+            if (!pressed) return;
+            if (e.LeftButton != MouseButtonState.Pressed) { FinishPress(false); return; }
+            Vector delta = ScreenMouse() - downScreen;
+            PresentationSource source = PresentationSource.FromVisual(this);
+            if (source == null || source.CompositionTarget == null) return;
+            delta = source.CompositionTarget.TransformFromDevice.Transform(delta);
+            if (!dragged && (Math.Abs(delta.X) >= SystemParameters.MinimumHorizontalDragDistance || Math.Abs(delta.Y) >= SystemParameters.MinimumVerticalDragDistance))
+            { dragged = true; dragging = true; CancelActivities(); }
             if (dragged) { Left = dragLeft + delta.X; Top = dragTop + delta.Y; }
         }
         private void Up(object sender, MouseButtonEventArgs e)
         {
-            if (!dragging) return;
-            bool moved = dragged; dragging = false; ReleaseMouseCapture();
-            if (moved) { UpdateArea(); Clamp(); Say("换个地方陪你～", 3); nextAction = Time + 12; walkUntil = 0; }
-            else Pet();
+            if (!pressed) return;
+            FinishPress(true);
             e.Handled = true;
         }
 
+        private void FinishPress(bool allowPet)
+        {
+            if (!pressed) return;
+            bool moved = dragged;
+            pressed = false; dragging = false; dragged = false;
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            if (moved)
+            { UpdateArea(); Clamp(); Say("换个地方陪你～", 3); nextAction = Time + 12; walkUntil = 0; SaveSettings(); }
+            else if (allowPet) Pet();
+        }
+
+        private void CancelActivities()
+        { petUntil = 0; jumpUntil = 0; walkUntil = 0; interactionUntil = 0; interaction = null; }
+
         private void Pet()
         {
-            asleep = false; petUntil = Time + 2.8; walkUntil = 0; nextAction = Time + 10;
+            CancelActivities(); asleep = false; petUntil = Time + 2.8; nextAction = Time + 10;
             string[] words = { "呼噜呼噜～", "最喜欢摸摸啦", "喵呜，陪着你", "今天也辛苦啦" };
             Say(words[random.Next(words.Length)], 3);
         }
         private void Jump()
-        { asleep = false; jumpUntil = Time + .8; walkUntil = 0; nextAction = Time + 10; Say("喵！", 1.6); }
+        { CancelActivities(); asleep = false; jumpUntil = Time + .8; nextAction = Time + 10; Say("喵！", 1.6); }
         private void ToggleSleep()
-        { asleep = !asleep; walkUntil = 0; petUntil = 0; jumpUntil = 0; nextAction = Time + 10; Say(asleep ? "眯一会儿…" : "睡醒啦，喵～", 3); }
+        { CancelActivities(); asleep = !asleep; nextAction = Time + 10; Say(asleep ? "眯一会儿…" : "睡醒啦，喵～", 3); }
+        private void Feed() { StartInteraction("eat", 5, "开饭啦，啊呜～"); }
+        private void Play() { StartInteraction("play", 6, "小球球，别跑～"); }
+        private void StartInteraction(string mood, double duration, string words)
+        {
+            CancelActivities(); asleep = false;
+            interaction = mood; interactionStart = Time; interactionUntil = Time + duration;
+            nextAction = interactionUntil + 8; Say(words, duration);
+        }
         private void Say(string text, double seconds)
         { bubble = text; bubbleUntil = clock.Elapsed.TotalSeconds + seconds; canvas.InvalidateVisual(); }
         private void SetSize(double value)
@@ -292,57 +358,80 @@ namespace DesktopKitten
         }
         private void ShowMenu()
         {
+            FinishPress(false);
             ContextMenu menu = new ContextMenu();
             menu.FontFamily = new FontFamily("Microsoft YaHei UI"); menu.FontSize = 13;
             menu.Items.Add(Item("摸摸糯米", Pet));
             menu.Items.Add(Item("跳一下", Jump));
+            menu.Items.Add(Item("喂点猫粮", Feed));
+            menu.Items.Add(Item("玩毛线球", Play));
             menu.Items.Add(new Separator());
             MenuItem roam = Item("自由走动", delegate { roaming = !roaming; walkUntil = 0; nextAction = Time + 3; SaveSettings(); });
             roam.IsCheckable = true; roam.IsChecked = roaming; menu.Items.Add(roam);
             menu.Items.Add(Item(asleep ? "叫醒小猫" : "睡一会儿", ToggleSleep));
             MenuItem sizes = new MenuItem(); sizes.Header = "小猫大小";
-            sizes.Items.Add(Item("小", delegate { SetSize(.68); }));
-            sizes.Items.Add(Item("中", delegate { SetSize(.9); }));
-            sizes.Items.Add(Item("大", delegate { SetSize(1.15); }));
+            sizes.Items.Add(SizeItem("小", .68));
+            sizes.Items.Add(SizeItem("中", .9));
+            sizes.Items.Add(SizeItem("大", 1.15));
             menu.Items.Add(sizes);
             MenuItem top = Item("置顶显示", delegate { Topmost = !Topmost; SaveSettings(); });
             top.IsCheckable = true; top.IsChecked = Topmost; menu.Items.Add(top);
             menu.Items.Add(Item("回到右下角", delegate { Home(); Say("喵，我回来啦", 3); }));
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("退出小猫", Close));
-            menu.Opened += delegate { menuOpen = true; };
-            menu.Closed += delegate { menuOpen = false; nextAction = Time + 7; walkUntil = 0; };
+            menu.Opened += delegate { SetMenuOpen(true); };
+            menu.Closed += delegate { SetMenuOpen(false); };
             menu.PlacementTarget = canvas;
             menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
             canvas.ContextMenu = menu; menu.IsOpen = true;
+        }
+
+        private MenuItem SizeItem(string label, double value)
+        {
+            MenuItem item = Item(label, delegate { SetSize(value); });
+            item.IsCheckable = true; item.IsChecked = Math.Abs(size - value) < .01;
+            return item;
+        }
+
+        private void SetMenuOpen(bool open)
+        {
+            menuOpen = open; walkUntil = 0; nextAction = Math.Max(nextAction, Time + 7);
+            if (open) FinishPress(false);
         }
 
         private void LoadSettings()
         {
             try
             {
-                string[] lines = File.ReadAllLines(Path.Combine(Program.Folder, "settings.txt"));
-                double candidate;
-                if (lines.Length >= 3 && double.TryParse(lines[0], NumberStyles.Float, CultureInfo.InvariantCulture, out candidate))
-                {
-                    if (candidate >= .6 && candidate <= 1.3) size = candidate;
-                    roaming = lines[1] != "false"; Topmost = lines[2] != "false";
-                }
+                preferences = PetSettings.Load(Path.Combine(Program.Folder, "settings.txt"));
+                size = preferences.Size; roaming = preferences.Roaming; Topmost = preferences.Topmost;
             }
-            catch { }
+            catch (Exception ex) { Program.Log(ex); }
         }
         private void SaveSettings()
         {
-            try { File.WriteAllLines(Path.Combine(Program.Folder, "settings.txt"), new string[] { size.ToString(CultureInfo.InvariantCulture), roaming ? "true" : "false", Topmost ? "true" : "false" }); } catch { }
+            try
+            {
+                preferences.Size = size; preferences.Roaming = roaming; preferences.Topmost = Topmost;
+                preferences.Left = Left; preferences.Top = Top;
+                preferences.Save(Path.Combine(Program.Folder, "settings.txt"));
+                settingsErrorLogged = false;
+            }
+            catch (Exception ex) { if (!settingsErrorLogged) { Program.Log(ex); settingsErrorLogged = true; } }
         }
         private void WriteStatus(string status)
         {
+            string path = Path.Combine(Program.Folder, "status.json"), temporary = path + ".tmp";
             try
             {
-                string json = "{\"status\":\"" + status + "\",\"pid\":" + Process.GetCurrentProcess().Id + ",\"mood\":\"" + Mood + "\",\"seconds\":" + Time.ToString("F1", CultureInfo.InvariantCulture) + ",\"x\":" + Left.ToString("F1", CultureInfo.InvariantCulture) + ",\"y\":" + Top.ToString("F1", CultureInfo.InvariantCulture) + ",\"roaming\":" + (roaming ? "true" : "false") + "}";
-                File.WriteAllText(Path.Combine(Program.Folder, "status.json"), json);
+                string json = "{\"status\":\"" + status + "\",\"pid\":" + Process.GetCurrentProcess().Id + ",\"mood\":\"" + Mood + "\",\"seconds\":" + Time.ToString("F1", CultureInfo.InvariantCulture) + ",\"x\":" + Left.ToString("F1", CultureInfo.InvariantCulture) + ",\"y\":" + Top.ToString("F1", CultureInfo.InvariantCulture) + ",\"roaming\":" + (roaming ? "true" : "false") + ",\"size\":" + size.ToString(CultureInfo.InvariantCulture) + ",\"topmost\":" + (Topmost ? "true" : "false") + ",\"updatedAt\":\"" + DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) + "\"}";
+                File.WriteAllText(temporary, json);
+                if (File.Exists(path)) File.Replace(temporary, path, null);
+                else File.Move(temporary, path);
+                statusErrorLogged = false;
             }
-            catch { }
+            catch (Exception ex) { if (!statusErrorLogged) { Program.Log(ex); statusErrorLogged = true; } }
+            finally { try { if (File.Exists(temporary)) File.Delete(temporary); } catch { } }
         }
         private System.Drawing.Icon MakeIcon()
         {
@@ -386,6 +475,9 @@ namespace DesktopKitten
                 bool mirror = pet.Mood == "walk" && pet.direction < 0;
                 if (mirror) dc.PushTransform(new ScaleTransform(-1, 1, 120, 120));
                 CatArt.Draw(dc, pet.Time, pet.Mood, pet.Mood == "walk" ? 1 : 0, pet.Pulse, 1);
+                double progress = pet.interactionUntil > pet.interactionStart
+                    ? (pet.Time - pet.interactionStart) / (pet.interactionUntil - pet.interactionStart) : 0;
+                CatInteractionArt.Draw(dc, pet.Time, pet.Mood, progress);
                 if (mirror) dc.Pop();
                 dc.Pop(); dc.Pop();
             }
@@ -394,7 +486,7 @@ namespace DesktopKitten
                 Point p = parameters.HitPoint;
                 // Keep empty space around the cat available to the desktop.
                 double x = p.X / pet.size, y = p.Y / pet.size;
-                if (x >= 30 && x <= 211 && y >= 85 - pet.Bounce && y <= 282) return new PointHitTestResult(this, p);
+                if (x >= 30 && x <= (pet.Mood == "eat" ? 233 : 211) && y >= 85 - pet.Bounce && y <= 282) return new PointHitTestResult(this, p);
                 return null;
             }
         }

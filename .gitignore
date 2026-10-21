@@ -9,6 +9,8 @@ obj/
 settings.txt
 status.json
 error.log
+settings.txt.tmp
+status.json.tmp
 
 # Editor and OS metadata
 .vs/

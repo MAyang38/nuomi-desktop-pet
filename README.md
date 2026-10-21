@@ -1,15 +1,21 @@
 # 糯米 · 小猫桌宠
 
-一只陪在 Windows 桌面上的奶油橘小猫。它会眨眼、摇尾巴、散步，也会在摸摸时冒出爱心，累了就趴下来睡一会儿。
+一只陪在 Windows 桌面上的奶油橘小猫。它会眨眼、摇尾巴、散步，也会在摸摸时冒出爱心，吃点猫粮、玩玩毛线球，累了就趴下来睡一会儿。
 
 ![糯米的行走与趴睡动画预览](docs/preview.gif)
 
+![包含喂食和毛线球互动的八种状态](docs/interaction-preview.png)
+
+[查看左右行走时的头部朝向对照](docs/walk-directions.png)
+
 ## 它会做什么
 
-- **走路**：两只手臂交替摆动，双脚交替迈步，身体随步伐轻轻起伏，头部跟着摆动。
+- **走路**：两只手臂交替摆动，双脚交替迈步，身体随步伐轻轻起伏；头部朝行进方向转为侧脸，向左走看左、向右走看右。
 - **趴着睡觉**：身体放低、前爪伸在脸旁、尾巴蜷起，伴随轻微呼吸和浮动的 `Z`。
 - **互动**：单击摸摸、双击跳跃、拖动换位置，还会说几句悄悄话。
+- **喂食与玩耍**：猫身和托盘右键菜单都能喂猫粮、玩毛线球，互动时会叫醒小猫。
 - **桌面陪伴**：透明背景、可选置顶、三档大小、可暂停自由走动。
+- **记住位置**：保存大小、走动、置顶和当前位置，下次启动恢复；保存位置失效时返回主屏幕。
 - **方便找回**：托盘菜单、托盘图标双击和重复启动都可以把小猫带回主屏幕右下角。
 - **本地运行**：偏好和运行状态保存在程序目录；不需要登录账号。
 
@@ -29,10 +35,10 @@
 
 ### 从源码构建
 
-1. 克隆此仓库，或在 GitHub 点击 **Code → Download ZIP** 后解压。
+1. 完整项目位于 **`master` 分支**。使用下面的命令克隆，或在 GitHub 切换到 `master` 后点击 **Code → Download ZIP** 并解压。
 
 ```powershell
-git clone https://github.com/MAyang38/nuomi-desktop-pet.git
+git clone --branch master --single-branch https://github.com/MAyang38/nuomi-desktop-pet.git
 cd nuomi-desktop-pet
 ```
 2. 打开仓库目录，在资源管理器地址栏输入 `powershell` 并回车。
@@ -50,7 +56,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 .\KittenPet.exe
 ```
 
-小猫默认出现在主屏幕工作区的右下角，随后会偶尔散步。把程序放在有写入权限的普通文件夹中，方便保存偏好和诊断文件。
+小猫首次启动默认出现在主屏幕工作区的右下角，随后会偶尔散步；已有有效保存位置时会恢复位置。把程序放在有写入权限的普通文件夹中，方便保存偏好和诊断文件。
 
 ### 已有编译好的程序
 
@@ -67,6 +73,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 | 按住鼠标左键拖动 | 移动小猫，松开后留在新的位置 |
 | 右键 → 摸摸糯米 | 与单击相同 |
 | 右键 → 跳一下 | 与双击相同 |
+| 右键 → 喂点猫粮 | 吃猫粮约 5 秒，显示小鱼碗；睡着时会醒来 |
+| 右键 → 玩毛线球 | 玩毛线球约 6 秒，小球轻弹滚动；睡着时会醒来 |
 | 右键 → 自由走动 | 开启或暂停偶尔散步 |
 | 右键 → 睡一会儿 | 趴下睡觉，保持睡眠直到叫醒或互动 |
 | 右键 → 叫醒小猫 | 结束睡眠 |
@@ -75,7 +83,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 | 右键 → 回到右下角 | 将小猫送回主屏幕右下角 |
 | 右键 → 退出小猫 | 关闭程序并移除托盘图标 |
 
-**系统托盘**：点击任务栏右侧的“显示隐藏的图标”可找到小猫图标。双击图标可找回小猫；右键可以找回、睡觉 / 叫醒或退出。
+**系统托盘**：点击任务栏右侧的“显示隐藏的图标”可找到小猫图标。双击图标可找回小猫；右键可以找回、睡觉 / 叫醒、喂点猫粮、玩毛线球或退出。
 
 **重复启动**：同一 Windows 会话中只运行一只糯米。再次打开程序会找回已经运行的小猫。
 
@@ -92,11 +100,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 | 状态 | 表现 | 进入方式 |
 | --- | --- | --- |
 | `idle` | 站立、眨眼、轻微呼吸和摆尾 | 没有其他活动时 |
-| `walk` | 摆臂、迈步、身体起伏和头部摆动 | 开启自由走动后间歇发生 |
+| `walk` | 摆臂、迈步、身体起伏，侧脸随行进方向左右转向 | 开启自由走动后间歇发生 |
 | `happy` | 高兴的表情、爱心 | 摸摸小猫 |
 | `sleep` | 身体趴低、前爪伸出、蜷尾、闭眼呼吸 | 右键选择睡觉 |
 | `jump` | 短暂跳起 | 双击或菜单操作 |
 | `drag` | 被拎起时的表情与姿态 | 按住左键拖动 |
+| `eat` | 吃猫粮，小鱼碗里的猫粮逐渐减少 | 猫身或托盘菜单“喂点猫粮”，持续约 5 秒 |
+| `play` | 玩毛线球，小球轻弹、滚动 | 猫身或托盘菜单“玩毛线球”，持续约 6 秒 |
 
 散步会在屏幕工作区边缘转向。拖动后会按所在屏幕的工作区限制位置；“找回”始终返回主屏幕。显示器布局、缩放或工作区变化时，程序也会尝试把小猫带回可见区域。
 
@@ -106,12 +116,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 
 ### `settings.txt`
 
-在程序目录保存三行偏好，依次是缩放比例、是否自由走动、是否置顶。例如：
+在程序目录保存五行设置，依次是缩放比例、是否自由走动、是否置顶、窗口左坐标 `Left`、窗口上坐标 `Top`。旧版三行文件仍可读取；缺少坐标时使用主屏幕右下角。例如：
 
 ```text
 0.9
 true
 true
+800
+600
 ```
 
 | 行 | 含义 | 菜单对应值 |
@@ -119,8 +131,12 @@ true
 | 1 | 大小比例，小数点使用 `.` | 小 `0.68`、中 `0.9`、大 `1.15` |
 | 2 | 是否自由走动 | `true` / `false` |
 | 3 | 是否置顶 | `true` / `false` |
+| 4 | 窗口左坐标 `Left`，WPF 逻辑坐标 | 拖动后保存；多屏桌面可以是负数 |
+| 5 | 窗口上坐标 `Top`，WPF 逻辑坐标 | 拖动后保存；多屏桌面可以是负数 |
 
-建议通过右键菜单更改。若需恢复默认设置，先退出小猫，再删除 `settings.txt` 后启动。当前位置和睡眠状态不会跨启动保存。
+建议通过右键菜单更改。拖动结束、更改偏好和正常退出时会保存当前位置。再次启动会恢复有效坐标；原屏幕断开等情况导致位置失效时，返回主屏幕右下角。保存的是 WPF 逻辑坐标，Windows 缩放变化可能影响实际显示位置。睡眠状态仍不会跨启动保存。
+
+若需恢复默认设置，先退出小猫，再删除 `settings.txt` 后启动。
 
 ### `status.json`
 
@@ -134,11 +150,14 @@ true
   "seconds": 12.3,
   "x": 800.0,
   "y": 600.0,
-  "roaming": true
+  "roaming": true,
+  "size": 0.9,
+  "topmost": true,
+  "updatedAt": "2026-10-21T08:00:00.0000000Z"
 }
 ```
 
-坐标为 WPF 逻辑坐标；示例数值仅用于解释格式。文件可能保留上次运行的状态，判断时请同时查看修改时间和进程状态。
+坐标为 WPF 逻辑坐标，`size` 是大小比例，`topmost` 是置顶状态，`updatedAt` 为 UTC 时间；示例数值仅用于解释格式。文件可能保留上次运行的状态，判断时请同时查看更新时间和进程状态。
 
 ### `error.log`
 
@@ -151,10 +170,20 @@ nuomi-desktop-pet/
 ├─ KittenPet.cs       # 应用入口、透明窗口、交互、状态切换、托盘与偏好
 ├─ CatArt.cs          # 站立、行走、互动等状态的 WPF 矢量绘制
 ├─ CatSleepArt.cs     # 独立的趴睡姿态与呼吸动画
+├─ CatInteractionArt.cs # 猫粮碗、猫粮和毛线球的独立矢量绘制
+├─ PetSettings.cs     # 兼容旧版的偏好读取与五行设置保存
 ├─ build.ps1          # 使用系统 C# 编译器生成 KittenPet.exe
 ├─ 使用说明.txt        # 随程序阅读的简明说明
 ├─ docs/
-│  └─ preview.gif     # 行走与趴睡的动画预览
+│  ├─ preview.gif     # 行走与趴睡的动画预览
+│  ├─ interaction-preview.png # 包含喂食和玩球的八种状态预览
+│  └─ walk-directions.png # 待机、向左走、向右走的实际画布对照
+├─ tests/
+│  ├─ Test-Settings.ps1 # 设置读取、保存及旧版兼容回归检查
+│  ├─ Test-Behavior.ps1 # 桌宠动作与窗口行为回归检查
+│  ├─ BehaviorTestRunner.cs # 隔离运行的 WPF 集成测试
+│  ├─ Test-WalkDirection.ps1 # 实际画布左右行走朝向渲染检查
+│  └─ WalkDirectionTestRunner.cs # 头部朝向像素检查与对照图
 ├─ .gitignore
 ├─ .gitattributes
 └─ README.md
@@ -163,6 +192,25 @@ nuomi-desktop-pet/
 小猫通过 WPF `DrawingContext` 绘制，无需外部图片素材。窗口使用透明背景和约 30 FPS 的刷新定时器；动作随时间计算。托盘使用 Windows Forms `NotifyIcon`，单实例和找回通过命名互斥锁与窗口消息实现。
 
 修改绘制或交互代码后，先退出正在运行的小猫，再执行 `build.ps1`，然后重新启动。运行中的可执行文件可能被 Windows 占用，导致构建无法覆盖。
+
+### 回归检查
+
+在仓库目录运行以下命令。三个脚本均支持可选参数 `-WorkDirectory`，用于指定测试工作目录：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Settings.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Behavior.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-WalkDirection.ps1
+```
+
+例如使用仓库下的 `test-work` 文件夹：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Settings.ps1 -WorkDirectory .\test-work
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Behavior.ps1 -WorkDirectory .\test-work
+```
+
+行为检查依赖 Windows WPF 环境；实际多屏和不同 DPI 下的显示效果仍需在对应桌面环境验证。
 
 ## 常见问题
 
@@ -180,7 +228,7 @@ nuomi-desktop-pet/
 
 ### 为什么睡着后不会自己起来？
 
-“睡一会儿”会持续保持趴睡状态。选择“叫醒小猫”、摸摸或双击跳跃即可唤醒。
+“睡一会儿”会持续保持趴睡状态。选择“叫醒小猫”、摸摸、双击跳跃、喂猫粮或玩毛线球即可唤醒。
 
 ### 构建提示找不到 `csc.exe` 或框架程序集
 
@@ -190,7 +238,7 @@ nuomi-desktop-pet/
 
 先通过小猫或托盘右键菜单退出，再重新编译。也可以在同一会话中执行 `KittenPet.exe --stop`。请确认程序目录有写入权限。
 
-### 大小、走动或置顶设置没有保存
+### 大小、走动、置顶或位置没有保存
 
 确认程序所在目录可以写入。把文件夹移到自己的普通文档目录后重试，避免放在需要额外权限才能写入的位置。
 

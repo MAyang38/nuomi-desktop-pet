@@ -5,14 +5,28 @@
 单击小猫：摸摸它，会冒爱心、说悄悄话。
 双击小猫：跳一下。
 按住左键拖动：把小猫放到喜欢的位置。
-右键小猫：自由走动、睡觉、大小、置顶、找回、退出。
-系统托盘里的小猫图标：双击找回；右键可退出。
+右键小猫 → 喂点猫粮：吃猫粮约 5 秒，会显示小鱼碗。
+右键小猫 → 玩毛线球：玩球约 6 秒，毛线球会轻弹滚动。
+右键小猫还可选择：自由走动、睡觉、大小、置顶、找回、退出。
+系统托盘里的小猫图标：双击找回；右键可喂猫粮、玩毛线球、睡觉 / 叫醒、找回或退出。
+摸摸、跳跃、喂猫粮或玩毛线球都会叫醒睡着的小猫。
 
-小猫默认出现在主屏幕右下角，随后偶尔散步。
+小猫首次启动默认出现在主屏幕右下角，随后偶尔散步。
+再次启动会恢复已保存的位置；原屏幕断开等情况使位置失效时，返回主屏幕右下角。
 退出：右键小猫选择“退出小猫”，或右键托盘图标退出。
-它不会自动设置开机启动。大小、散步和置顶选择会保存。
+它不会自动设置开机启动。大小、散步、置顶选择和当前位置会保存；睡眠状态不跨启动保存。
 
 系统：Windows 10/11，使用系统自带 .NET Framework WPF，无需安装依赖。
-走路时双手摆臂、双脚迈步；睡觉时会伏低身体、头枕前爪。
-源码：KittenPet.cs、CatArt.cs 与 CatSleepArt.cs。重新编译可运行 build.ps1。
-settings.txt 保存偏好；status.json 记录当前运行状态；遇到错误写入 error.log。
+走路时双手摆臂、双脚迈步，头部朝行进方向转为侧脸；睡觉时会伏低身体、头枕前爪。
+源码：KittenPet.cs、CatArt.cs、CatSleepArt.cs、CatInteractionArt.cs 与 PetSettings.cs。
+重新编译可运行 build.ps1。
+settings.txt 保存五行：大小、自由走动、置顶、Left、Top，兼容旧版三行设置。
+Left 和 Top 为 WPF 逻辑坐标；多屏坐标可以是负数，缩放变化可能影响实际显示位置。
+status.json 记录动作、位置、大小 size、置顶 topmost 和 UTC 更新时间 updatedAt；遇到错误写入 error.log。
+
+在项目目录运行回归检查：
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Settings.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Behavior.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-WalkDirection.ps1
+三个脚本均支持 -WorkDirectory，例如在命令末尾加上 -WorkDirectory .\test-work。
+多屏和不同 DPI 下的显示效果仍需在对应桌面环境验证。
