@@ -1,0 +1,17 @@
+# Local build output and portable packages
+*.exe
+*.pdb
+*.zip
+bin/
+obj/
+
+# User preferences and runtime diagnostics
+settings.txt
+status.json
+error.log
+
+# Editor and OS metadata
+.vs/
+.vscode/
+Thumbs.db
+Desktop.ini
